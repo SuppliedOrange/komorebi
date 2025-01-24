@@ -10,6 +10,8 @@ use crate::media::Media;
 use crate::media::MediaConfig;
 use crate::memory::Memory;
 use crate::memory::MemoryConfig;
+use crate::discord::Discord;
+use crate::discord::DiscordConfig;
 use crate::network::Network;
 use crate::network::NetworkConfig;
 use crate::render::RenderConfig;
@@ -40,6 +42,7 @@ pub enum WidgetConfig {
     Network(NetworkConfig),
     Storage(StorageConfig),
     Time(TimeConfig),
+    Discord(DiscordConfig),
     Update(UpdateConfig),
 }
 
@@ -55,6 +58,7 @@ impl WidgetConfig {
             WidgetConfig::Network(config) => Box::new(Network::from(*config)),
             WidgetConfig::Storage(config) => Box::new(Storage::from(*config)),
             WidgetConfig::Time(config) => Box::new(Time::from(config.clone())),
+            WidgetConfig::Discord(config) => Box::new(Discord::from(config.clone())),
             WidgetConfig::Update(config) => Box::new(Update::from(*config)),
         }
     }
@@ -78,6 +82,7 @@ impl WidgetConfig {
             WidgetConfig::Network(config) => config.enable,
             WidgetConfig::Storage(config) => config.enable,
             WidgetConfig::Time(config) => config.enable,
+            WidgetConfig::Discord(config) => config.enable,
             WidgetConfig::Update(config) => config.enable,
         }
     }

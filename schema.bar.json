@@ -814,6 +814,70 @@
           {
             "type": "object",
             "required": [
+              "Discord"
+            ],
+            "properties": {
+              "Discord": {
+                "type": "object",
+                "required": [
+                  "enable"
+                ],
+                "properties": {
+                  "data_refresh_interval": {
+                    "description": "Data refresh interval (default: 10 seconds)",
+                    "type": "integer",
+                    "format": "uint64",
+                    "minimum": 0.0
+                  },
+                  "enable": {
+                    "description": "Enable the Discord widget (only shows notifications if the Discord app is running)",
+                    "type": "boolean"
+                  },
+                  "label_prefix": {
+                    "description": "Display label prefix",
+                    "oneOf": [
+                      {
+                        "description": "Show no prefix",
+                        "type": "string",
+                        "enum": [
+                          "None"
+                        ]
+                      },
+                      {
+                        "description": "Show an icon",
+                        "type": "string",
+                        "enum": [
+                          "Icon"
+                        ]
+                      },
+                      {
+                        "description": "Show text",
+                        "type": "string",
+                        "enum": [
+                          "Text"
+                        ]
+                      },
+                      {
+                        "description": "Show an icon and text",
+                        "type": "string",
+                        "enum": [
+                          "IconAndText"
+                        ]
+                      }
+                    ]
+                  },
+                  "window_filter_keyword": {
+                    "description": "Filter the Discord window by keyword. Default is 'Discord'",
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
               "Update"
             ],
             "properties": {

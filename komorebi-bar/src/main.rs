@@ -12,6 +12,7 @@ mod render;
 mod selected_frame;
 mod storage;
 mod time;
+mod discord;
 mod ui;
 mod update;
 mod widget;
