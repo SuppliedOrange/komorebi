@@ -25,6 +25,7 @@ pub use default_layout::DefaultLayout;
 pub use direction::Direction;
 pub use layout::Layout;
 pub use operation_direction::OperationDirection;
+pub use pathext::PathExt;
 pub use rect::Rect;
 
 pub mod animation;
@@ -37,6 +38,7 @@ pub mod default_layout;
 pub mod direction;
 pub mod layout;
 pub mod operation_direction;
+pub mod pathext;
 pub mod rect;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Display, JsonSchema)]
@@ -117,6 +119,7 @@ pub enum SocketMessage {
     CycleFocusMonitor(CycleDirection),
     CycleFocusWorkspace(CycleDirection),
     FocusMonitorNumber(usize),
+    FocusMonitorAtCursor,
     FocusLastWorkspace,
     CloseWorkspace,
     FocusWorkspaceNumber(usize),
@@ -330,6 +333,7 @@ pub enum StateQuery {
     FocusedWorkspaceIndex,
     FocusedContainerIndex,
     FocusedWindowIndex,
+    FocusedWorkspaceName,
 }
 
 #[derive(
@@ -428,7 +432,16 @@ pub enum MoveBehaviour {
 }
 
 #[derive(
-    Clone, Copy, Debug, Serialize, Deserialize, Display, EnumString, ValueEnum, JsonSchema,
+    Clone,
+    Copy,
+    Debug,
+    Serialize,
+    Deserialize,
+    Display,
+    EnumString,
+    ValueEnum,
+    JsonSchema,
+    PartialEq,
 )]
 pub enum CrossBoundaryBehaviour {
     /// Attempt to perform actions across a workspace boundary
@@ -438,7 +451,16 @@ pub enum CrossBoundaryBehaviour {
 }
 
 #[derive(
-    Copy, Clone, Debug, Serialize, Deserialize, Display, EnumString, ValueEnum, JsonSchema,
+    Copy,
+    Clone,
+    Debug,
+    Serialize,
+    Deserialize,
+    Display,
+    EnumString,
+    ValueEnum,
+    JsonSchema,
+    PartialEq,
 )]
 pub enum HidingBehaviour {
     /// Use the SW_HIDE flag to hide windows when switching workspaces (has issues with Electron apps)

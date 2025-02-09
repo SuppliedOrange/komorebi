@@ -1108,6 +1108,8 @@ enum SubCommand {
     /// Focus the specified monitor
     #[clap(arg_required_else_help = true)]
     FocusMonitor(FocusMonitor),
+    /// Focus the monitor at the current cursor location
+    FocusMonitorAtCursor,
     /// Focus the last focused workspace on the focused monitor
     FocusLastWorkspace,
     /// Focus the specified workspace on the focused monitor
@@ -1175,7 +1177,7 @@ enum SubCommand {
     #[clap(hide = true)]
     #[clap(arg_required_else_help = true)]
     LoadCustomLayout(LoadCustomLayout),
-    /// Flip the layout on the focused workspace (BSP only)
+    /// Flip the layout on the focused workspace
     #[clap(arg_required_else_help = true)]
     FlipLayout(FlipLayout),
     /// Promote the focused window to the top of the tree
@@ -2587,6 +2589,9 @@ if (Get-Command Get-CimInstance -ErrorAction SilentlyContinue) {
         }
         SubCommand::FocusMonitor(arg) => {
             send_message(&SocketMessage::FocusMonitorNumber(arg.target))?;
+        }
+        SubCommand::FocusMonitorAtCursor => {
+            send_message(&SocketMessage::FocusMonitorAtCursor)?;
         }
         SubCommand::FocusLastWorkspace => {
             send_message(&SocketMessage::FocusLastWorkspace)?;

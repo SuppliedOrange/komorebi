@@ -52,6 +52,7 @@ use crate::border_manager::STYLE;
 use crate::colour::Rgb;
 use crate::config_generation::WorkspaceMatchingRule;
 use crate::current_virtual_desktop;
+use crate::monitor::MonitorInformation;
 use crate::notify_subscribers;
 use crate::stackbar_manager;
 use crate::stackbar_manager::STACKBAR_FONT_FAMILY;
@@ -734,6 +735,11 @@ impl WindowManager {
                 self.focus_monitor(monitor_idx)?;
                 self.update_focused_workspace(self.mouse_follows_focus, true)?;
             }
+            SocketMessage::FocusMonitorAtCursor => {
+                if let Some(monitor_idx) = self.monitor_idx_from_current_pos() {
+                    self.focus_monitor(monitor_idx)?;
+                }
+            }
             SocketMessage::Retile => {
                 border_manager::destroy_all_borders()?;
                 self.retile_all(false)?
@@ -847,7 +853,15 @@ impl WindowManager {
                 // secondary monitor where the cursor is focused will be used as the target for
                 // the workspace switch op
                 if let Some(monitor_idx) = self.monitor_idx_from_current_pos() {
-                    self.focus_monitor(monitor_idx)?;
+                    if monitor_idx != self.focused_monitor_idx() {
+                        if let Some(monitor) = self.monitors().get(monitor_idx) {
+                            if let Some(workspace) = monitor.focused_workspace() {
+                                if workspace.is_empty() {
+                                    self.focus_monitor(monitor_idx)?;
+                                }
+                            }
+                        }
+                    }
                 }
 
                 let focused_monitor = self
@@ -870,7 +884,15 @@ impl WindowManager {
                 // secondary monitor where the cursor is focused will be used as the target for
                 // the workspace switch op
                 if let Some(monitor_idx) = self.monitor_idx_from_current_pos() {
-                    self.focus_monitor(monitor_idx)?;
+                    if monitor_idx != self.focused_monitor_idx() {
+                        if let Some(monitor) = self.monitors().get(monitor_idx) {
+                            if let Some(workspace) = monitor.focused_workspace() {
+                                if workspace.is_empty() {
+                                    self.focus_monitor(monitor_idx)?;
+                                }
+                            }
+                        }
+                    }
                 }
 
                 let mut can_close = false;
@@ -906,7 +928,15 @@ impl WindowManager {
                 // secondary monitor where the cursor is focused will be used as the target for
                 // the workspace switch op
                 if let Some(monitor_idx) = self.monitor_idx_from_current_pos() {
-                    self.focus_monitor(monitor_idx)?;
+                    if monitor_idx != self.focused_monitor_idx() {
+                        if let Some(monitor) = self.monitors().get(monitor_idx) {
+                            if let Some(workspace) = monitor.focused_workspace() {
+                                if workspace.is_empty() {
+                                    self.focus_monitor(monitor_idx)?;
+                                }
+                            }
+                        }
+                    }
                 }
 
                 let idx = self
@@ -929,7 +959,15 @@ impl WindowManager {
                 // secondary monitor where the cursor is focused will be used as the target for
                 // the workspace switch op
                 if let Some(monitor_idx) = self.monitor_idx_from_current_pos() {
-                    self.focus_monitor(monitor_idx)?;
+                    if monitor_idx != self.focused_monitor_idx() {
+                        if let Some(monitor) = self.monitors().get(monitor_idx) {
+                            if let Some(workspace) = monitor.focused_workspace() {
+                                if workspace.is_empty() {
+                                    self.focus_monitor(monitor_idx)?;
+                                }
+                            }
+                        }
+                    }
                 }
 
                 if self.focused_workspace_idx().unwrap_or_default() != workspace_idx {
@@ -941,7 +979,15 @@ impl WindowManager {
                 // secondary monitor where the cursor is focused will be used as the target for
                 // the workspace switch op
                 if let Some(monitor_idx) = self.monitor_idx_from_current_pos() {
-                    self.focus_monitor(monitor_idx)?;
+                    if monitor_idx != self.focused_monitor_idx() {
+                        if let Some(monitor) = self.monitors().get(monitor_idx) {
+                            if let Some(workspace) = monitor.focused_workspace() {
+                                if workspace.is_empty() {
+                                    self.focus_monitor(monitor_idx)?;
+                                }
+                            }
+                        }
+                    }
                 }
 
                 let focused_monitor_idx = self.focused_monitor_idx();
@@ -1051,9 +1097,9 @@ impl WindowManager {
                 reply.write_all(visible_windows_state.as_bytes())?;
             }
             SocketMessage::MonitorInformation => {
-                let mut monitors = HashMap::new();
+                let mut monitors = vec![];
                 for monitor in self.monitors() {
-                    monitors.insert(monitor.device_id(), monitor.size());
+                    monitors.push(MonitorInformation::from(monitor));
                 }
 
                 let monitors_state = serde_json::to_string_pretty(&monitors)
@@ -1063,19 +1109,29 @@ impl WindowManager {
             }
             SocketMessage::Query(query) => {
                 let response = match query {
-                    StateQuery::FocusedMonitorIndex => self.focused_monitor_idx(),
+                    StateQuery::FocusedMonitorIndex => self.focused_monitor_idx().to_string(),
                     StateQuery::FocusedWorkspaceIndex => self
                         .focused_monitor()
                         .ok_or_else(|| anyhow!("there is no monitor"))?
-                        .focused_workspace_idx(),
-                    StateQuery::FocusedContainerIndex => {
-                        self.focused_workspace()?.focused_container_idx()
-                    }
+                        .focused_workspace_idx()
+                        .to_string(),
+                    StateQuery::FocusedContainerIndex => self
+                        .focused_workspace()?
+                        .focused_container_idx()
+                        .to_string(),
                     StateQuery::FocusedWindowIndex => {
-                        self.focused_container()?.focused_window_idx()
+                        self.focused_container()?.focused_window_idx().to_string()
                     }
-                }
-                .to_string();
+                    StateQuery::FocusedWorkspaceName => {
+                        let focused_monitor = self
+                            .focused_monitor()
+                            .ok_or_else(|| anyhow!("there is no monitor"))?;
+
+                        focused_monitor
+                            .focused_workspace_name()
+                            .unwrap_or_else(|| focused_monitor.focused_workspace_idx().to_string())
+                    }
+                };
 
                 reply.write_all(response.as_bytes())?;
             }
@@ -1304,6 +1360,8 @@ impl WindowManager {
 
                     // Initialize the new wm
                     wm.init()?;
+
+                    wm.restore_all_windows(true)?;
 
                     // This is equivalent to StaticConfig::postload for this use case
                     StaticConfig::reload(config, &mut wm)?;

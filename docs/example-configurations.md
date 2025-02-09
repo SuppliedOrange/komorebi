@@ -75,7 +75,7 @@ solo developer.
 
 If you choose to use the active window border, you can set different colours to
 give you visual queues when you are focused on a single window, a stack of
-windows, or a window that is in monocole mode.
+windows, or a window that is in monocle mode.
 
 The example colours given are blue single, green for stack and pink for
 monocle.
@@ -254,5 +254,5 @@ stackbars as well as the status bar.
 If set in `komorebi.bar.json`, the theme will only be applied to the status bar.
 
 All [Catppuccin palette variants](https://catppuccin.com/)
-and [most Base16 palette variants](https://tinted-theming.github.io/base16-gallery/)
+and [most Base16 palette variants](https://tinted-theming.github.io/tinted-gallery/)
 are available as themes.

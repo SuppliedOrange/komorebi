@@ -35,13 +35,16 @@ use crate::window_manager::WindowManager;
 use crate::window_manager_event::WindowManagerEvent;
 use crate::windows_api::WindowsApi;
 use crate::workspace::Workspace;
+use crate::AspectRatio;
 use crate::Axis;
 use crate::CrossBoundaryBehaviour;
+use crate::PredefinedAspectRatio;
 use crate::DATA_DIR;
 use crate::DEFAULT_CONTAINER_PADDING;
 use crate::DEFAULT_WORKSPACE_PADDING;
 use crate::DISPLAY_INDEX_PREFERENCES;
 use crate::FLOATING_APPLICATIONS;
+use crate::FLOATING_WINDOW_TOGGLE_ASPECT_RATIO;
 use crate::HIDING_BEHAVIOUR;
 use crate::IGNORE_IDENTIFIERS;
 use crate::LAYERED_WHITELIST;
@@ -49,6 +52,7 @@ use crate::MANAGE_IDENTIFIERS;
 use crate::MONITOR_INDEX_PREFERENCES;
 use crate::NO_TITLEBAR;
 use crate::OBJECT_NAME_CHANGE_ON_LAUNCH;
+use crate::OBJECT_NAME_CHANGE_TITLE_IGNORE_LIST;
 use crate::REGEX_IDENTIFIERS;
 use crate::SLOW_APPLICATION_COMPENSATION_TIME;
 use crate::SLOW_APPLICATION_IDENTIFIERS;
@@ -97,21 +101,26 @@ use std::sync::Arc;
 use uds_windows::UnixListener;
 use uds_windows::UnixStream;
 
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct BorderColours {
     /// Border colour when the container contains a single window
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub single: Option<Colour>,
     /// Border colour when the container contains multiple windows
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub stack: Option<Colour>,
     /// Border colour when the container is in monocle mode
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub monocle: Option<Colour>,
     /// Border colour when the container is in floating mode
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub floating: Option<Colour>,
     /// Border colour when the container is unfocused
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub unfocused: Option<Colour>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct WorkspaceConfig {
     /// Name
     pub name: String,
@@ -121,7 +130,7 @@ pub struct WorkspaceConfig {
     /// END OF LIFE FEATURE: Custom Layout (default: None)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_layout: Option<PathBuf>,
-    /// Layout rules (default: None)
+    /// Layout rules in the format of threshold => layout (default: None)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub layout_rules: Option<HashMap<usize, DefaultLayout>>,
     /// END OF LIFE FEATURE: Custom layout rules (default: None)
@@ -145,8 +154,10 @@ pub struct WorkspaceConfig {
     /// Determine what happens when a new window is opened (default: Create)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub window_container_behaviour: Option<WindowContainerBehaviour>,
-    /// Enable or disable float override, which makes it so every new window opens in floating mode
-    /// (default: false)
+    /// Window container behaviour rules in the format of threshold => behaviour (default: None)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub window_container_behaviour_rules: Option<HashMap<usize, WindowContainerBehaviour>>,
+    /// Enable or disable float override, which makes it so every new window opens in floating mode (default: false)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub float_override: Option<bool>,
     /// Specify an axis on which to flip the selected layout (default: None)
@@ -164,6 +175,11 @@ impl From<&Workspace> for WorkspaceConfig {
                 }
                 Layout::Custom(_) => {}
             }
+        }
+
+        let mut window_container_behaviour_rules = HashMap::new();
+        for (threshold, behaviour) in value.window_container_behaviour_rules().iter().flatten() {
+            window_container_behaviour_rules.insert(*threshold, *behaviour);
         }
 
         let default_container_padding = DEFAULT_CONTAINER_PADDING.load(Ordering::SeqCst);
@@ -205,13 +221,14 @@ impl From<&Workspace> for WorkspaceConfig {
             workspace_rules: None,
             apply_window_based_work_area_offset: Some(value.apply_window_based_work_area_offset()),
             window_container_behaviour: *value.window_container_behaviour(),
+            window_container_behaviour_rules: Option::from(window_container_behaviour_rules),
             float_override: *value.float_override(),
             layout_flip: value.layout_flip(),
         }
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct MonitorConfig {
     /// Workspace configurations
     pub workspaces: Vec<WorkspaceConfig>,
@@ -242,7 +259,7 @@ impl From<&Monitor> for MonitorConfig {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq)]
 /// The `komorebi.json` static configuration file reference for `v0.1.34`
 pub struct StaticConfig {
     /// DEPRECATED from v0.1.22: no longer required
@@ -354,6 +371,9 @@ pub struct StaticConfig {
     /// Identify applications that send EVENT_OBJECT_NAMECHANGE on launch (very rare)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub object_name_change_applications: Option<Vec<MatchingRule>>,
+    /// Do not process EVENT_OBJECT_NAMECHANGE events as Show events for identified applications matching these title regexes
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub object_name_change_title_ignore_list: Option<Vec<String>>,
     /// Set monitor index preferences
     #[serde(skip_serializing_if = "Option::is_none")]
     pub monitor_index_preferences: Option<HashMap<usize, Rect>>,
@@ -376,26 +396,33 @@ pub struct StaticConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub slow_application_compensation_time: Option<u64>,
     /// Komorebi status bar configuration files for multiple instances on different monitors
-    #[serde(skip_serializing_if = "Option::is_none")]
     // this option is a little special because it is only consumed by komorebic
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub bar_configurations: Option<Vec<PathBuf>>,
     /// HEAVILY DISCOURAGED: Identify applications for which komorebi should forcibly remove title bars
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remove_titlebar_applications: Option<Vec<MatchingRule>>,
+    /// Aspect ratio to resize with when toggling floating mode for a window
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub floating_window_aspect_ratio: Option<AspectRatio>,
 }
 
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct AnimationsConfig {
     /// Enable or disable animations (default: false)
-    enabled: PerAnimationPrefixConfig<bool>,
+    pub enabled: PerAnimationPrefixConfig<bool>,
     /// Set the animation duration in ms (default: 250)
-    duration: Option<PerAnimationPrefixConfig<u64>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration: Option<PerAnimationPrefixConfig<u64>>,
     /// Set the animation style (default: Linear)
-    style: Option<PerAnimationPrefixConfig<AnimationStyle>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub style: Option<PerAnimationPrefixConfig<AnimationStyle>>,
     /// Set the animation FPS (default: 60)
-    fps: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fps: Option<u64>,
 }
-#[derive(Copy, Clone, Debug, Serialize, Deserialize, JsonSchema)]
+
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(tag = "palette")]
 pub enum KomorebiTheme {
     /// A theme from catppuccin-egui
@@ -403,45 +430,63 @@ pub enum KomorebiTheme {
         /// Name of the Catppuccin theme (theme previews: https://github.com/catppuccin/catppuccin)
         name: komorebi_themes::Catppuccin,
         /// Border colour when the container contains a single window (default: Blue)
+        #[serde(skip_serializing_if = "Option::is_none")]
         single_border: Option<komorebi_themes::CatppuccinValue>,
         /// Border colour when the container contains multiple windows (default: Green)
+        #[serde(skip_serializing_if = "Option::is_none")]
         stack_border: Option<komorebi_themes::CatppuccinValue>,
         /// Border colour when the container is in monocle mode (default: Pink)
+        #[serde(skip_serializing_if = "Option::is_none")]
         monocle_border: Option<komorebi_themes::CatppuccinValue>,
         /// Border colour when the window is floating (default: Yellow)
+        #[serde(skip_serializing_if = "Option::is_none")]
         floating_border: Option<komorebi_themes::CatppuccinValue>,
         /// Border colour when the container is unfocused (default: Base)
+        #[serde(skip_serializing_if = "Option::is_none")]
         unfocused_border: Option<komorebi_themes::CatppuccinValue>,
         /// Stackbar focused tab text colour (default: Green)
+        #[serde(skip_serializing_if = "Option::is_none")]
         stackbar_focused_text: Option<komorebi_themes::CatppuccinValue>,
         /// Stackbar unfocused tab text colour (default: Text)
+        #[serde(skip_serializing_if = "Option::is_none")]
         stackbar_unfocused_text: Option<komorebi_themes::CatppuccinValue>,
         /// Stackbar tab background colour (default: Base)
+        #[serde(skip_serializing_if = "Option::is_none")]
         stackbar_background: Option<komorebi_themes::CatppuccinValue>,
         /// Komorebi status bar accent (default: Blue)
+        #[serde(skip_serializing_if = "Option::is_none")]
         bar_accent: Option<komorebi_themes::CatppuccinValue>,
     },
     /// A theme from base16-egui-themes
     Base16 {
-        /// Name of the Base16 theme (theme previews: https://tinted-theming.github.io/base16-gallery)
+        /// Name of the Base16 theme (theme previews: https://tinted-theming.github.io/tinted-gallery/)
         name: komorebi_themes::Base16,
         /// Border colour when the container contains a single window (default: Base0D)
+        #[serde(skip_serializing_if = "Option::is_none")]
         single_border: Option<komorebi_themes::Base16Value>,
         /// Border colour when the container contains multiple windows (default: Base0B)
+        #[serde(skip_serializing_if = "Option::is_none")]
         stack_border: Option<komorebi_themes::Base16Value>,
         /// Border colour when the container is in monocle mode (default: Base0F)
+        #[serde(skip_serializing_if = "Option::is_none")]
         monocle_border: Option<komorebi_themes::Base16Value>,
         /// Border colour when the window is floating (default: Base09)
+        #[serde(skip_serializing_if = "Option::is_none")]
         floating_border: Option<komorebi_themes::Base16Value>,
         /// Border colour when the container is unfocused (default: Base01)
+        #[serde(skip_serializing_if = "Option::is_none")]
         unfocused_border: Option<komorebi_themes::Base16Value>,
         /// Stackbar focused tab text colour (default: Base0B)
+        #[serde(skip_serializing_if = "Option::is_none")]
         stackbar_focused_text: Option<komorebi_themes::Base16Value>,
         /// Stackbar unfocused tab text colour (default: Base05)
+        #[serde(skip_serializing_if = "Option::is_none")]
         stackbar_unfocused_text: Option<komorebi_themes::Base16Value>,
         /// Stackbar tab background colour (default: Base01)
+        #[serde(skip_serializing_if = "Option::is_none")]
         stackbar_background: Option<komorebi_themes::Base16Value>,
         /// Komorebi status bar accent (default: Base0D)
+        #[serde(skip_serializing_if = "Option::is_none")]
         bar_accent: Option<komorebi_themes::Base16Value>,
     },
 }
@@ -527,31 +572,41 @@ impl StaticConfig {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct TabsConfig {
     /// Width of a stackbar tab
-    width: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub width: Option<i32>,
     /// Focused tab text colour
-    focused_text: Option<Colour>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub focused_text: Option<Colour>,
     /// Unfocused tab text colour
-    unfocused_text: Option<Colour>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unfocused_text: Option<Colour>,
     /// Tab background colour
-    background: Option<Colour>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub background: Option<Colour>,
     /// Font family
-    font_family: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_family: Option<String>,
     /// Font size
-    font_size: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_size: Option<i32>,
 }
 
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct StackbarConfig {
     /// Stackbar height
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub height: Option<i32>,
     /// Stackbar label
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<StackbarLabel>,
     /// Stackbar mode
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<StackbarMode>,
     /// Stackbar tab configuration options
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub tabs: Option<TabsConfig>,
 }
 
@@ -625,7 +680,17 @@ impl From<&WindowManager> for StaticConfig {
             border_overflow_applications: None,
             tray_and_multi_window_applications: None,
             layered_applications: None,
-            object_name_change_applications: None,
+            object_name_change_applications: Option::from(
+                OBJECT_NAME_CHANGE_ON_LAUNCH.lock().clone(),
+            ),
+            object_name_change_title_ignore_list: Option::from(
+                OBJECT_NAME_CHANGE_TITLE_IGNORE_LIST
+                    .lock()
+                    .clone()
+                    .iter()
+                    .map(|r| r.to_string())
+                    .collect::<Vec<_>>(),
+            ),
             monitor_index_preferences: Option::from(MONITOR_INDEX_PREFERENCES.lock().clone()),
             display_index_preferences: Option::from(DISPLAY_INDEX_PREFERENCES.lock().clone()),
             stackbar: None,
@@ -637,6 +702,7 @@ impl From<&WindowManager> for StaticConfig {
             slow_application_identifiers: Option::from(SLOW_APPLICATION_IDENTIFIERS.lock().clone()),
             bar_configurations: None,
             remove_titlebar_applications: Option::from(NO_TITLEBAR.lock().clone()),
+            floating_window_aspect_ratio: Option::from(*FLOATING_WINDOW_TOGGLE_ASPECT_RATIO.lock()),
         }
     }
 }
@@ -644,6 +710,10 @@ impl From<&WindowManager> for StaticConfig {
 impl StaticConfig {
     #[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
     fn apply_globals(&mut self) -> Result<()> {
+        *FLOATING_WINDOW_TOGGLE_ASPECT_RATIO.lock() = self
+            .floating_window_aspect_ratio
+            .unwrap_or(AspectRatio::Predefined(PredefinedAspectRatio::Standard));
+
         if let Some(monitor_index_preferences) = &self.monitor_index_preferences {
             let mut preferences = MONITOR_INDEX_PREFERENCES.lock();
             preferences.clone_from(monitor_index_preferences);
@@ -779,6 +849,7 @@ impl StaticConfig {
         let mut manage_identifiers = MANAGE_IDENTIFIERS.lock();
         let mut tray_and_multi_window_identifiers = TRAY_AND_MULTI_WINDOW_IDENTIFIERS.lock();
         let mut object_name_change_identifiers = OBJECT_NAME_CHANGE_ON_LAUNCH.lock();
+        let mut object_name_change_title_ignore_list = OBJECT_NAME_CHANGE_TITLE_IGNORE_LIST.lock();
         let mut layered_identifiers = LAYERED_WHITELIST.lock();
         let mut transparency_blacklist = TRANSPARENCY_BLACKLIST.lock();
         let mut slow_application_identifiers = SLOW_APPLICATION_IDENTIFIERS.lock();
@@ -803,6 +874,17 @@ impl StaticConfig {
                 &mut object_name_change_identifiers,
                 &mut regex_identifiers,
             )?;
+        }
+
+        if let Some(regexes) = &mut self.object_name_change_title_ignore_list {
+            let mut updated = vec![];
+            for r in regexes {
+                if let Ok(regex) = Regex::new(r) {
+                    updated.push(regex);
+                }
+            }
+
+            *object_name_change_title_ignore_list = updated;
         }
 
         if let Some(rules) = &mut self.layered_applications {
@@ -1209,6 +1291,9 @@ impl StaticConfig {
         value.apply_globals()?;
 
         if let Some(monitors) = value.monitors {
+            let mut workspace_matching_rules = WORKSPACE_MATCHING_RULES.lock();
+            workspace_matching_rules.clear();
+
             for (i, monitor) in monitors.iter().enumerate() {
                 if let Some(m) = wm.monitors_mut().get_mut(i) {
                     m.ensure_workspace_count(monitor.workspaces.len());
@@ -1227,8 +1312,6 @@ impl StaticConfig {
                     }
                 }
 
-                let mut workspace_matching_rules = WORKSPACE_MATCHING_RULES.lock();
-                workspace_matching_rules.clear();
                 for (j, ws) in monitor.workspaces.iter().enumerate() {
                     if let Some(rules) = &ws.workspace_rules {
                         for r in rules {

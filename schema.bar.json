@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "KomobarConfig",
-  "description": "The `komorebi.bar.json` configuration file reference for `v0.1.33`",
+  "description": "The `komorebi.bar.json` configuration file reference for `v0.1.34`",
   "type": "object",
   "required": [
     "left_widgets",
@@ -198,8 +198,100 @@
                           }
                         },
                         "additionalProperties": false
+                      },
+                      {
+                        "description": "Custom format with modifiers",
+                        "type": "object",
+                        "required": [
+                          "CustomModifiers"
+                        ],
+                        "properties": {
+                          "CustomModifiers": {
+                            "description": "Custom format with additive modifiers for integer format specifiers",
+                            "type": "object",
+                            "required": [
+                              "format",
+                              "modifiers"
+                            ],
+                            "properties": {
+                              "format": {
+                                "description": "Custom format (https://docs.rs/chrono/latest/chrono/format/strftime/index.html)",
+                                "type": "string"
+                              },
+                              "modifiers": {
+                                "description": "Additive modifiers for integer format specifiers (e.g. { \"%U\": 1 } to increment the zero-indexed week number by 1)",
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "integer",
+                                  "format": "int32"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "additionalProperties": false
                       }
                     ]
+                  },
+                  "label_prefix": {
+                    "description": "Display label prefix",
+                    "oneOf": [
+                      {
+                        "description": "Show no prefix",
+                        "type": "string",
+                        "enum": [
+                          "None"
+                        ]
+                      },
+                      {
+                        "description": "Show an icon",
+                        "type": "string",
+                        "enum": [
+                          "Icon"
+                        ]
+                      },
+                      {
+                        "description": "Show text",
+                        "type": "string",
+                        "enum": [
+                          "Text"
+                        ]
+                      },
+                      {
+                        "description": "Show an icon and text",
+                        "type": "string",
+                        "enum": [
+                          "IconAndText"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "Keyboard"
+            ],
+            "properties": {
+              "Keyboard": {
+                "type": "object",
+                "required": [
+                  "enable"
+                ],
+                "properties": {
+                  "data_refresh_interval": {
+                    "description": "Data refresh interval (default: 1 second)",
+                    "type": "integer",
+                    "format": "uint64",
+                    "minimum": 0.0
+                  },
+                  "enable": {
+                    "description": "Enable the Input widget",
+                    "type": "boolean"
                   },
                   "label_prefix": {
                     "description": "Display label prefix",
@@ -1278,6 +1370,11 @@
         }
       ]
     },
+    "height": {
+      "description": "Bar height (default: 50)",
+      "type": "number",
+      "format": "float"
+    },
     "icon_scale": {
       "description": "Scale of the icons relative to the font_size [[1.0-2.0]]. (default: 1.4)",
       "type": "number",
@@ -1472,8 +1569,100 @@
                           }
                         },
                         "additionalProperties": false
+                      },
+                      {
+                        "description": "Custom format with modifiers",
+                        "type": "object",
+                        "required": [
+                          "CustomModifiers"
+                        ],
+                        "properties": {
+                          "CustomModifiers": {
+                            "description": "Custom format with additive modifiers for integer format specifiers",
+                            "type": "object",
+                            "required": [
+                              "format",
+                              "modifiers"
+                            ],
+                            "properties": {
+                              "format": {
+                                "description": "Custom format (https://docs.rs/chrono/latest/chrono/format/strftime/index.html)",
+                                "type": "string"
+                              },
+                              "modifiers": {
+                                "description": "Additive modifiers for integer format specifiers (e.g. { \"%U\": 1 } to increment the zero-indexed week number by 1)",
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "integer",
+                                  "format": "int32"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "additionalProperties": false
                       }
                     ]
+                  },
+                  "label_prefix": {
+                    "description": "Display label prefix",
+                    "oneOf": [
+                      {
+                        "description": "Show no prefix",
+                        "type": "string",
+                        "enum": [
+                          "None"
+                        ]
+                      },
+                      {
+                        "description": "Show an icon",
+                        "type": "string",
+                        "enum": [
+                          "Icon"
+                        ]
+                      },
+                      {
+                        "description": "Show text",
+                        "type": "string",
+                        "enum": [
+                          "Text"
+                        ]
+                      },
+                      {
+                        "description": "Show an icon and text",
+                        "type": "string",
+                        "enum": [
+                          "IconAndText"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "Keyboard"
+            ],
+            "properties": {
+              "Keyboard": {
+                "type": "object",
+                "required": [
+                  "enable"
+                ],
+                "properties": {
+                  "data_refresh_interval": {
+                    "description": "Data refresh interval (default: 1 second)",
+                    "type": "integer",
+                    "format": "uint64",
+                    "minimum": 0.0
+                  },
+                  "enable": {
+                    "description": "Enable the Input widget",
+                    "type": "boolean"
                   },
                   "label_prefix": {
                     "description": "Display label prefix",
@@ -2148,26 +2337,14 @@
         ]
       }
     },
-    "max_label_width": {
-      "description": "Max label width before text truncation (default: 400.0)",
-      "type": "number",
-      "format": "float"
-    },
-    "monitor": {
-      "description": "Monitor options",
-      "type": "object",
-      "required": [
-        "index"
-      ],
-      "properties": {
-        "index": {
-          "description": "Komorebi monitor index of the monitor on which to render the bar",
-          "type": "integer",
-          "format": "uint",
-          "minimum": 0.0
+    "margin": {
+      "description": "Bar margin. Use one value for all sides or use a grouped margin for horizontal and/or vertical definition which can each take a single value for a symmetric margin or two values for each side, i.e.: ```json \"margin\": { \"horizontal\": 10 } ``` or: ```json \"margin\": { \"vertical\": [top, bottom] } ``` You can also set individual margin on each side like this: ```json \"margin\": { \"top\": 10, \"bottom\": 10, \"left\": 10, \"right\": 10, } ``` By default, margin is set to 0 on all sides.",
+      "anyOf": [
+        {
+          "type": "number",
+          "format": "float"
         },
-        "work_area_offset": {
-          "description": "Automatically apply a work area offset for this monitor to accommodate the bar",
+        {
           "type": "object",
           "required": [
             "bottom",
@@ -2177,28 +2354,225 @@
           ],
           "properties": {
             "bottom": {
-              "description": "The bottom point in a Win32 Rect",
-              "type": "integer",
-              "format": "int32"
+              "type": "number",
+              "format": "float"
             },
             "left": {
-              "description": "The left point in a Win32 Rect",
-              "type": "integer",
-              "format": "int32"
+              "type": "number",
+              "format": "float"
             },
             "right": {
-              "description": "The right point in a Win32 Rect",
-              "type": "integer",
-              "format": "int32"
+              "type": "number",
+              "format": "float"
             },
             "top": {
-              "description": "The top point in a Win32 Rect",
-              "type": "integer",
-              "format": "int32"
+              "type": "number",
+              "format": "float"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "horizontal": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "format": "float"
+                },
+                {
+                  "type": "array",
+                  "items": [
+                    {
+                      "type": "number",
+                      "format": "float"
+                    },
+                    {
+                      "type": "number",
+                      "format": "float"
+                    }
+                  ],
+                  "maxItems": 2,
+                  "minItems": 2
+                }
+              ]
+            },
+            "vertical": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "format": "float"
+                },
+                {
+                  "type": "array",
+                  "items": [
+                    {
+                      "type": "number",
+                      "format": "float"
+                    },
+                    {
+                      "type": "number",
+                      "format": "float"
+                    }
+                  ],
+                  "maxItems": 2,
+                  "minItems": 2
+                }
+              ]
             }
           }
         }
-      }
+      ]
+    },
+    "max_label_width": {
+      "description": "Max label width before text truncation (default: 400.0)",
+      "type": "number",
+      "format": "float"
+    },
+    "monitor": {
+      "description": "The monitor index or the full monitor options",
+      "anyOf": [
+        {
+          "description": "The monitor index where you want the bar to show",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
+        {
+          "description": "The full monitor options with the index and an optional work_area_offset",
+          "type": "object",
+          "required": [
+            "index"
+          ],
+          "properties": {
+            "index": {
+              "description": "Komorebi monitor index of the monitor on which to render the bar",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0.0
+            },
+            "work_area_offset": {
+              "description": "Automatically apply a work area offset for this monitor to accommodate the bar",
+              "type": "object",
+              "required": [
+                "bottom",
+                "left",
+                "right",
+                "top"
+              ],
+              "properties": {
+                "bottom": {
+                  "description": "The bottom point in a Win32 Rect",
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "left": {
+                  "description": "The left point in a Win32 Rect",
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "right": {
+                  "description": "The right point in a Win32 Rect",
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "top": {
+                  "description": "The top point in a Win32 Rect",
+                  "type": "integer",
+                  "format": "int32"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "padding": {
+      "description": "Bar padding. Use one value for all sides or use a grouped padding for horizontal and/or vertical definition which can each take a single value for a symmetric padding or two values for each side, i.e.: ```json \"padding\": { \"horizontal\": 10 } ``` or: ```json \"padding\": { \"horizontal\": [left, right] } ``` You can also set individual padding on each side like this: ```json \"padding\": { \"top\": 10, \"bottom\": 10, \"left\": 10, \"right\": 10, } ``` By default, padding is set to 10 on all sides.",
+      "anyOf": [
+        {
+          "type": "number",
+          "format": "float"
+        },
+        {
+          "type": "object",
+          "required": [
+            "bottom",
+            "left",
+            "right",
+            "top"
+          ],
+          "properties": {
+            "bottom": {
+              "type": "number",
+              "format": "float"
+            },
+            "left": {
+              "type": "number",
+              "format": "float"
+            },
+            "right": {
+              "type": "number",
+              "format": "float"
+            },
+            "top": {
+              "type": "number",
+              "format": "float"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "horizontal": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "format": "float"
+                },
+                {
+                  "type": "array",
+                  "items": [
+                    {
+                      "type": "number",
+                      "format": "float"
+                    },
+                    {
+                      "type": "number",
+                      "format": "float"
+                    }
+                  ],
+                  "maxItems": 2,
+                  "minItems": 2
+                }
+              ]
+            },
+            "vertical": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "format": "float"
+                },
+                {
+                  "type": "array",
+                  "items": [
+                    {
+                      "type": "number",
+                      "format": "float"
+                    },
+                    {
+                      "type": "number",
+                      "format": "float"
+                    }
+                  ],
+                  "maxItems": 2,
+                  "minItems": 2
+                }
+              ]
+            }
+          }
+        }
+      ]
     },
     "position": {
       "description": "Bar positioning options",
@@ -2435,8 +2809,100 @@
                           }
                         },
                         "additionalProperties": false
+                      },
+                      {
+                        "description": "Custom format with modifiers",
+                        "type": "object",
+                        "required": [
+                          "CustomModifiers"
+                        ],
+                        "properties": {
+                          "CustomModifiers": {
+                            "description": "Custom format with additive modifiers for integer format specifiers",
+                            "type": "object",
+                            "required": [
+                              "format",
+                              "modifiers"
+                            ],
+                            "properties": {
+                              "format": {
+                                "description": "Custom format (https://docs.rs/chrono/latest/chrono/format/strftime/index.html)",
+                                "type": "string"
+                              },
+                              "modifiers": {
+                                "description": "Additive modifiers for integer format specifiers (e.g. { \"%U\": 1 } to increment the zero-indexed week number by 1)",
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "integer",
+                                  "format": "int32"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "additionalProperties": false
                       }
                     ]
+                  },
+                  "label_prefix": {
+                    "description": "Display label prefix",
+                    "oneOf": [
+                      {
+                        "description": "Show no prefix",
+                        "type": "string",
+                        "enum": [
+                          "None"
+                        ]
+                      },
+                      {
+                        "description": "Show an icon",
+                        "type": "string",
+                        "enum": [
+                          "Icon"
+                        ]
+                      },
+                      {
+                        "description": "Show text",
+                        "type": "string",
+                        "enum": [
+                          "Text"
+                        ]
+                      },
+                      {
+                        "description": "Show an icon and text",
+                        "type": "string",
+                        "enum": [
+                          "IconAndText"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "Keyboard"
+            ],
+            "properties": {
+              "Keyboard": {
+                "type": "object",
+                "required": [
+                  "enable"
+                ],
+                "properties": {
+                  "data_refresh_interval": {
+                    "description": "Data refresh interval (default: 1 second)",
+                    "type": "integer",
+                    "format": "uint64",
+                    "minimum": 0.0
+                  },
+                  "enable": {
+                    "description": "Enable the Input widget",
+                    "type": "boolean"
                   },
                   "label_prefix": {
                     "description": "Display label prefix",
@@ -3201,7 +3667,7 @@
               ]
             },
             "name": {
-              "description": "Name of the Base16 theme (theme previews: https://tinted-theming.github.io/base16-gallery)",
+              "description": "Name of the Base16 theme (theme previews: https://tinted-theming.github.io/tinted-gallery/)",
               "type": "string",
               "enum": [
                 "3024",

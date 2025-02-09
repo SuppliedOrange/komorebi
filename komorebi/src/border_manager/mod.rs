@@ -29,6 +29,7 @@ use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::sync::OnceLock;
+use strum::Display;
 use windows::Win32::Graphics::Direct2D::ID2D1HwndRenderTarget;
 
 pub static BORDER_WIDTH: AtomicI32 = AtomicI32::new(8);
@@ -211,6 +212,16 @@ pub fn handle_notifications(wm: Arc<Mutex<WindowManager>>) -> color_eyre::Result
                                 .unwrap_or_default()
                                 .set_accent(window_kind_colour(window_kind))?;
                         }
+
+                        for window in ws.floating_windows() {
+                            let mut window_kind = WindowKind::Unfocused;
+
+                            if foreground_window == window.hwnd {
+                                window_kind = WindowKind::Floating;
+                            }
+
+                            window.set_accent(window_kind_colour(window_kind))?;
+                        }
                     }
                 }
             }
@@ -251,6 +262,7 @@ pub fn handle_notifications(wm: Arc<Mutex<WindowManager>>) -> color_eyre::Result
                         .map(|b| b.window_kind == WindowKind::Floating)
                         .unwrap_or_default())
                 });
+
                 if !should_process_notification && switch_focus_to_from_floating_window {
                     should_process_notification = true;
                 }
@@ -488,7 +500,7 @@ pub fn handle_notifications(wm: Arc<Mutex<WindowManager>>) -> color_eyre::Result
                                 Some(last_focus_state) => last_focus_state != new_focus_state,
                             };
 
-                            if new_border {
+                            if new_border || should_invalidate {
                                 border.set_position(&rect, reference_hwnd)?;
                             }
 
@@ -568,7 +580,7 @@ pub fn handle_notifications(wm: Arc<Mutex<WindowManager>>) -> color_eyre::Result
     Ok(())
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Copy, Clone, Display, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub enum ZOrder {
     Top,
     NoTopMost,
